@@ -1,0 +1,161 @@
+# GitHub Actions Workflow Template for Repository Import
+# 
+# This is a TEMPLATE - rename to import-repository.yml to activate
+# Remove this file after the import is complete
+#
+# This workflow automates the repository import process using GitHub Actions
+# Prerequisites:
+#   - Source repository must be accessible (public or with appropriate tokens)
+#   - GitHub token must have write access to this repository
+
+name: Import learn-get-happy Repository
+
+# Trigger manually via workflow_dispatch
+on:
+  workflow_dispatch:
+    inputs:
+      source_repo_url:
+        description: 'Source repository URL'
+        required: true
+        default: 'https://github.com/lingarobotics/learn-get-happy.git'
+      source_branch:
+        description: 'Source branch to import'
+        required: true
+        default: 'main'
+      target_prefix:
+        description: 'Target directory prefix'
+        required: true
+        default: 'learn-get-happy'
+      import_branch:
+        description: 'Import branch name'
+        required: true
+        default: 'import/learn-get-happy'
+
+jobs:
+  import-repository:
+    runs-on: ubuntu-latest
+    
+    permissions:
+      contents: write
+      pull-requests: write
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0  # Full history for subtree
+          token: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+      
+      - name: Create import branch
+        run: |
+          git checkout -b ${{ inputs.import_branch }}
+      
+      - name: Add source repository as remote
+        run: |
+          git remote add source-repo ${{ inputs.source_repo_url }}
+      
+      - name: Fetch source repository
+        run: |
+          git fetch source-repo ${{ inputs.source_branch }}
+      
+      - name: Import repository using git subtree
+        run: |
+          git subtree add --prefix=${{ inputs.target_prefix }} source-repo/${{ inputs.source_branch }}
+      
+      - name: Verify import
+        run: |
+          echo "Verifying import..."
+          ls -la ${{ inputs.target_prefix }}/
+          echo ""
+          echo "Commit history:"
+          git log --oneline ${{ inputs.target_prefix }} | head -10
+      
+      - name: Push import branch
+        run: |
+          git push origin ${{ inputs.import_branch }}
+      
+      - name: Create Pull Request
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data: pr } = await github.rest.pulls.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: 'Import lingarobotics/learn-get-happy into learngetcert',
+              head: '${{ inputs.import_branch }}',
+              base: 'main',
+              body: `# Import lingarobotics/learn-get-happy Repository
+
+## Automated Import
+
+This PR was created by the automated import workflow.
+
+### Import Details
+- **Source Repository:** \`${{ inputs.source_repo_url }}\`
+- **Source Branch:** \`${{ inputs.source_branch }}\`
+- **Target Directory:** \`${{ inputs.target_prefix }}/\`
+- **Import Branch:** \`${{ inputs.import_branch }}\`
+
+### What Was Done
+- ✅ Fetched source repository
+- ✅ Imported using git subtree (history preserved)
+- ✅ Placed files under \`${{ inputs.target_prefix }}/\` directory
+- ✅ Pushed to import branch
+
+### Review Checklist
+- [ ] **Confirm build/tests pass** - Verify the imported code doesn't break existing functionality
+- [ ] **Confirm license and attribution** - Review licenses in imported files for compatibility  
+- [ ] **Review file placement** - Ensure all files are correctly under \`${{ inputs.target_prefix }}/\` directory
+- [ ] **Verify commit history** - Check that source repository history is preserved
+
+### Commit History
+All commits from the source repository have been preserved. View them with:
+\`\`\`bash
+git log ${{ inputs.target_prefix }}/
+\`\`\`
+
+### Future Updates
+To pull updates from the source repository in the future:
+\`\`\`bash
+git subtree pull --prefix=${{ inputs.target_prefix }} source-repo ${{ inputs.source_branch }}
+\`\`\`
+
+### Post-Merge
+After merging, optionally remove the source remote:
+\`\`\`bash
+git remote remove source-repo
+\`\`\`
+
+---
+*This PR was automatically created by GitHub Actions*`
+            });
+            
+            console.log(\`Pull request created: #\${pr.number}\`);
+      
+      - name: Output summary
+        run: |
+          echo "✅ Import completed successfully!"
+          echo ""
+          echo "Import Details:"
+          echo "  - Source: ${{ inputs.source_repo_url }}"
+          echo "  - Target: ${{ inputs.target_prefix }}/"
+          echo "  - Branch: ${{ inputs.import_branch }}"
+          echo ""
+          echo "A pull request has been created for review."
+
+# Error handling
+    if: failure()
+    steps:
+      - name: Report failure
+        run: |
+          echo "❌ Import failed!"
+          echo "Check the logs above for details."
+          echo ""
+          echo "You may need to run the import manually:"
+          echo "  ./import-repository.sh"
