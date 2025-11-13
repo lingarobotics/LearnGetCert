@@ -49,7 +49,35 @@ done
 # Check for unexpected files at root (excluding documentation)
 echo ""
 echo "Checking for unexpected files at root..."
-UNEXPECTED_FILES=$(ls -1 | grep -v "^$TARGET_PREFIX$" | grep -v "^\.git$" | grep -v "^README.md$" | grep -v "^idea.html$" | grep -v "^IMPORT_" | grep -v "^PR_DESCRIPTION.md$" | grep -v "^import-repository.sh$" | grep -v "^verify-import.sh$" || true)
+# Define allowed files
+ALLOWED_FILES=("$TARGET_PREFIX" ".git" "README.md" "idea.html" "INDEX.md")
+ALLOWED_PATTERNS=("IMPORT_" "PR_DESCRIPTION.md" "import-repository.sh" "verify-import.sh" "QUICKSTART.md")
+
+# Get all files and filter against allowed list
+UNEXPECTED_FILES=""
+for file in *; do
+    SKIP=false
+    # Check exact matches
+    for allowed in "${ALLOWED_FILES[@]}"; do
+        if [ "$file" = "$allowed" ]; then
+            SKIP=true
+            break
+        fi
+    done
+    # Check pattern matches
+    if [ "$SKIP" = false ]; then
+        for pattern in "${ALLOWED_PATTERNS[@]}"; do
+            if [[ "$file" == "$pattern"* ]]; then
+                SKIP=true
+                break
+            fi
+        done
+    fi
+    # If not skipped, it's unexpected
+    if [ "$SKIP" = false ]; then
+        UNEXPECTED_FILES="$UNEXPECTED_FILES$file"$'\n'
+    fi
+done
 if [ -z "$UNEXPECTED_FILES" ]; then
     echo "  ✓ No unexpected files at root"
 else

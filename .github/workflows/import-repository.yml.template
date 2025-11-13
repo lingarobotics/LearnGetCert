@@ -149,10 +149,8 @@ git remote remove source-repo
           echo ""
           echo "A pull request has been created for review."
 
-# Error handling
-    if: failure()
-    steps:
       - name: Report failure
+        if: failure()
         run: |
           echo "❌ Import failed!"
           echo "Check the logs above for details."
